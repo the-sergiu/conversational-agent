@@ -1,9 +1,11 @@
 ## TODO: 
-- API Key + gitignore + dotenv
-- 
+- Schedule event in Google Calendar given a prompt -> langchain tools
+    - Read Quickstart Langchain -> understand how to integrate functions/use embeddings
+    - Create function (and then tool function) to add event to calendar
+    - Also see how we can adapt it to delete event (given confirmation!)
+
 
 ## Conversational Agent
-
 The idea of this agent is to sustain live phone calls with a human and satisfy their narrow and immediate goal, given a certain context.
 Such an example could be scheduling a meeting on behalf of a company offering X type of consultation (i.e. dental office appointment creation by managing all requirements - checking availabilities, Google calendar invite creation, responding to the human, confirming dates), all through a more complex task such as extracting certain information from some data store (i.e. what is the status of my order?).
 
