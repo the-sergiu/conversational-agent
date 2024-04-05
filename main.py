@@ -1,12 +1,14 @@
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect , Request, File, UploadFile
-from fastapi.responses import FileResponse
-
 from dotenv import load_dotenv
+from fastapi import FastAPI, File, Request, UploadFile, WebSocket, WebSocketDisconnect
+from fastapi.responses import FileResponse, StreamingResponse
+
 load_dotenv()
 
-from openai import OpenAI
-import time
 import os
+import time
+from pathlib import Path
+
+from openai import OpenAI
 
 app = FastAPI()
 
@@ -19,13 +21,23 @@ client = OpenAI(
 # record the time before the request is sent
 start_time = time.time()
 
+from pydantic import BaseModel
+
+class TextToSpeechRequest(BaseModel):
+    text: str
 
 @app.post("/text-to-speech")
-async def text_to_speech(text: str):
-    # Convert text to speech using OpenAI's TTS API
-    # This is a hypothetical function, replace with actual API call
-    audio_stream = client.text_to_speech.synthesize(text)
-    return StreamingResponse(audio_stream, media_type="audio/wav")
+async def text_to_speech(request: TextToSpeechRequest):
+    text = request.text
+
+    def audio_stream_generator():
+        with client.audio.speech.with_streaming_response.create(
+            model="tts-1", voice="alloy", input=text
+        ) as response:
+            for chunk in response.iter_bytes():
+                yield chunk
+
+    return StreamingResponse(audio_stream_generator(), media_type="audio/wav")
 
 
 @app.post("/upload-audio")
@@ -51,22 +63,23 @@ async def upload_audio(file: UploadFile = File(...)):
 
 def call_open_api(message):
     completion = client.chat.completions.create(
-        model='gpt-3.5-turbo',
-        
+        model="gpt-3.5-turbo",
         messages=[
-            {"role": "system", "content": "You are a assistance named Bluu , A asistance from scalebuildAI , you help people to find the best product for them , Scalebuild ios a software company"},
-            #add 10 last messages history here
-
-            {'role': 'user', 'content': message}
+            {
+                "role": "system",
+                "content": "You are a assistance named Bluu , A asistance from scalebuildAI , you help people to find the best product for them , Scalebuild ios a software company",
+            },
+            # add 10 last messages history here
+            {"role": "user", "content": message},
         ],
         temperature=0,
-        stream=True  # again, we set stream=True
+        stream=True,  # again, we set stream=True
     )
 
     return completion
     # create variables to collect the stream of chunks
-    
-    
+
+
 class ConnectionManager:
     def __init__(self):
         self.active_connections = []
@@ -81,7 +94,9 @@ class ConnectionManager:
     async def send_text(self, text: str, websocket: WebSocket):
         await websocket.send_text(text)
 
+
 manager = ConnectionManager()
+
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
@@ -91,7 +106,7 @@ async def websocket_endpoint(websocket: WebSocket):
             try:
                 # Receive text data (speech recognition result) from the client
                 data = await websocket.receive_text()
-                
+
                 # Process the data
                 print(f"Received text: {data}")  # Example: print it to the console
                 res = call_open_api(data)
@@ -100,36 +115,42 @@ async def websocket_endpoint(websocket: WebSocket):
                 collected_messages = []
                 # iterate through the stream of events
                 for chunk in res:
-                    chunk_time = time.time() - start_time  # calculate the time delay of the chunk
+                    chunk_time = (
+                        time.time() - start_time
+                    )  # calculate the time delay of the chunk
                     collected_chunks.append(chunk)  # save the event response
-                    chunk_message = chunk.choices[0].delta.content  # extract the message
+                    chunk_message = chunk.choices[
+                        0
+                    ].delta.content  # extract the message
                     collected_messages.append(chunk_message)  # save the message
-                    
-                    
-                    if chunk_message is not None and chunk_message.find('.') != -1:
+
+                    if chunk_message is not None and chunk_message.find(".") != -1:
                         print("Found full stop")
                         message = [m for m in collected_messages if m is not None]
-                        full_reply_content = ''.join([m for m in message])
+                        full_reply_content = "".join([m for m in message])
+                        # audio_url = f"http://127.0.0.1:8000/text-to-speech?text={full_reply_content}"
 
                         await manager.send_text(full_reply_content, websocket)
+                        # await manager.send_text(audio_url, websocket)
                         collected_messages = []
-                    
 
-                    print(f"Message received {chunk_time:.2f} seconds after request: {chunk_message}")  # print the delay and text
+                    print(
+                        f"Message received {chunk_time:.2f} seconds after request: {chunk_message}"
+                    )  # print the delay and text
 
-                 # print the time delay and text received
+                # print the time delay and text received
                 # print(f"Full response received {chunk_time:.2f} seconds after request")
                 # # clean None in collected_messages
                 # collected_messages = [m for m in collected_messages if m is not None]
                 # full_reply_content = ''.join([m for m in collected_messages])
-                #check if collected_messages is not empty
+                # check if collected_messages is not empty
                 if len(collected_messages) > 0:
                     message = [m for m in collected_messages if m is not None]
-                    full_reply_content = ''.join([m for m in message])
+                    full_reply_content = "".join([m for m in message])
 
                     await manager.send_text(full_reply_content, websocket)
                     collected_messages = []
-                
+
             except WebSocketDisconnect:
                 manager.disconnect(websocket)
                 break
@@ -139,6 +160,7 @@ async def websocket_endpoint(websocket: WebSocket):
                 break
     finally:
         manager.disconnect(websocket)
+
 
 # api to acces htmlpage call voice.html
 @app.get("/")
