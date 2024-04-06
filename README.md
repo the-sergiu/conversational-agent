@@ -36,6 +36,7 @@ Such a Conversational Agent should containt 4 main components:
 
 ## OpenAI API & Pricing
 - Repo: https://github.com/openai/openai-python
+- API: https://platform.openai.com/docs/api-reference/
 - Limits for each model: https://platform.openai.com/account/limits. Some relevant pricings:
     - Speech to Text: `Whisper`: $0.006 / minute (rounded to the nearest second)
     - LLM: `gpt-3.5-turbo-0125`: Input: $0.50 / 1M tokens | Output: $1.50 / 1M tokens.
