@@ -104,6 +104,7 @@ async def upload_audio(file: UploadFile = File(...), audio_path: Path = audio_pa
                 message = [m for m in collected_messages if m is not None]
                 full_reply_content = "".join([m for m in message])
 
+                #HERE IS THE FUN PART
                 #await manager.send_text(full_reply_content, websocket)
                 message_queue.append(full_reply_content)
                 collected_messages = []
